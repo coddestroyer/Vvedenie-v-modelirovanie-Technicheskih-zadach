@@ -1,0 +1,34 @@
+adapth("functions/")
+
+txAntennaSize = [2 2 2 1 1];
+rxAntennaSize = [2 1 1 1 1];
+rmsDlaySpread = 300e-9;
+maxDoppler = 5;
+nSizeGrid = 52;
+
+subcarrierSpacing = 15;
+numTrainingChEst = 500;
+carrier = nrCarrierConfig;
+carrier.NSizeGrid = nSizeGrid;
+carrier.SubcarrierSpacing= subcarrierSpacing;
+autoEncOpt.NumSubcarriers = carrier.NSizeGrid*12;
+autoEncOpt.NymSymbols = carrier.SymbolsPerSlot;
+autoEncOpt.NumTxAntennas = prod(txAntennaSize);
+autoEncOpt.NumRxAntennas = prod(rxAntennaSize);
+
+%% Generate and Preprocess Data
+waveInfo = nrOFDMInfo(carrier);
+samplesPerSlot = sum(waveInfo.SymbolLengths(1:waveInfo.SymbolsPerSlot));
+channel = nrCDLChannel;
+channel.DelayProfile = 'CDL-C';
+channel.DelaySpread = rmsDlaySpread;
+channel.MaximumDopplerShift = maxDoppler;
+channel.RandomStream = "Global stream";
+channel.TransmitAntennaArray.Size = txAntennaSize;
+channel.ReceiveAntennaArray.Size = rxAntennaSize;
+channel.ChannelFiltering = false;
+channel.NumTimeSamples = samplesPerSlot;
+channel.SampleRate = waveInfo.SampleRate;
+
+%% Simulate Channel
+[pathGains, sampleTimes] = channel();
