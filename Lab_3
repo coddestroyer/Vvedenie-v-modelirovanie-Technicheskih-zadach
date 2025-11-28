@@ -1,0 +1,20 @@
+%% Reading file
+[almanac, tParameters] = ReadGPSAlmanac();
+disp(['Размер almanac:', num2str(size(almanac))]);
+disp(['Размерность almanac:', num2str(ndims(almanac))]);
+disp(['Размер tParameters:', num2str(size(almanac))]);
+disp('===Секция 1:Redaing almanac===');
+disp(' ');
+%% Almanac of one satellite
+satellite_num = input('Введите номер спутника GPS (1-32): ');
+if satellite_num >= 1 && satellite_num <= 32
+    disp('=== Секция 2: Almanac of one satellite ===');
+    disp(['Альманах для спутника', num2str(satellite_num), ':']);
+    disp(almanac(satellite_num, :));
+else
+    disp('Ошибка: номер спутника должен быть от 1 до 32');
+end
+disp(' ');
+%% Almanac of four random satellites
+random_sats = randi([1, 32], 1, 4);
+disp('=== Секция 3: Almanac of four random satellites ===');
