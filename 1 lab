@@ -1,0 +1,70 @@
+clc; clear
+
+%% User coordinates
+lat = 29.756972;
+lon = 59.499131;
+
+a = 6378137;
+b = 6.3568e+06;
+N = (1 - (b/a))/(1 - abs(1-(b/a)^2)*(sind(lat)^2)^(1/2));
+H = 20;
+%% Import from xls file
+
+x = (N + H)*cosd(lon)*cosd(lat);
+y = (N + H)*cosd(lat)*sind(lon);
+z = (N + H - N*abs(1-(b/a)^2) )*sind(lat);
+
+clear lat lon;
+
+fullData = readtable("/almanac_SV01", 'Range', 'A2:B14', 'ReadVariableNames', false);
+
+% Разделяем на столбцы
+FieldNames = string(fullData{:, 1});  % Первый столбец
+Values = double(fullData{:, 2});      % Второй столбец
+
+whos FieldNames Values;
+save('ImportResults.mat', 'FieldNames', 'Values', 'fullData');
+
+clear;
+ %% UtcTime
+
+dateAlmanac = '07/09/2025';
+timeAlmanac = '14:57:00';
+utcStr = [dateAlmanac ' ' timeAlmanac];
+
+% Запись 
+fid = fopen('utcTime.txt', 'w');
+fprintf(fid, '%s', utcStr);
+fclose(fid);
+
+% Чтение
+fid = fopen('utcTime.txt', 'r');
+utcTime = fscanf(fid, '%c');
+fclose(fid);
+
+%timeVec = datetime("now");
+timeVec = datetime(utcTime, 'InputFormat', 'dd/MM/yyyy HH:mm:ss');
+
+%% Показ результатов
+
+load('ImportResults.mat');
+
+fprintf('----------Almanac SV 01----------\n');
+for i = 1:length(Values)
+    fprintf('          %s %f\n', FieldNames(i), Values(i));
+end
+fprintf('------------------------------\n');
+
+% Вывод с помощью disp
+disp('----------Almanac SV 01----------');
+for i = 1:length(Values)
+    field_name_char = char(strtrim(FieldNames(i)));
+    value_char = num2str(Values(i), '%.6f');
+    
+    output_line = ['          ' field_name_char ' ' value_char];
+    disp(output_line);
+    %disp([           FieldNames(i) ":"  num2str(Values(i))]);
+end
+disp('------------------------------');
+
+clear;
