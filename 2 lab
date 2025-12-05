@@ -1,0 +1,112 @@
+clc; clear
+
+%% Reading almanac
+[almanac, tParameters]= ReadGPSAlmanac();
+
+%% Almanac of one sattellite
+
+sat_num = input('Введите номер спутника (1-32): ');
+paramNames = {
+        'Eccentricity'; 'TimeOfApplicability'; 
+        'OrbitalInclination'; 'RateOfRightAscen'; 'SQRT_A'; 
+        'RightAscenAtWeek'; 'ArgumentOfPerigee'; 'MeanAnom'; 
+        'Af0'; 'Af1'; 'Id';
+    };
+%for i = 1:size(almanac, 1)
+%    value = almanac(i, sat_num);
+%    
+%    if abs(value) < 1e-4 && value ~= 0
+%        fprintf('Param%d: %.6e\n', i, value);
+%    else
+%        fprintf('Param%d: %.6f\n', i, value);
+%    end
+%end
+
+sat_almanac = almanac(:, sat_num);
+T = table(paramNames, sat_almanac);
+disp(T)
+
+%% Almanac of four random satellites
+random_sats = randi([1, 32], 1, 4);
+fprintf('Случайно выбранные спутники: %d, %d, %d, %d\n', random_sats);
+
+almanac_3d = almanac(:, random_sats);
+format long g;
+almanac_3d = reshape(almanac_3d, 11, 1, 4);
+
+almanac_2d_squeeze = squeeze(almanac_3d);
+almanac_2d_reshape = reshape(almanac_3d, 11, 4);
+
+%% ECC > 0.01
+
+eccentricity = almanac(1, :);
+low_ecc_sats = find(eccentricity <= 0.01);
+
+fprintf('Спутники с эксцентриситетом <= 0.01:\n');
+if ~isempty(low_ecc_sats)
+    for i = 1:length(low_ecc_sats)
+        sat_num = low_ecc_sats(i);
+        fprintf('GPS-%d: ECC = %.6f\n', sat_num, eccentricity(sat_num));
+    end
+    fprintf('Всего найдено: %d спутников\n', length(low_ecc_sats));
+end
+
+%% Almanac time
+
+time_of_almanac = almanac(4, 1);  % 4-я строка - Time of Applicability
+gps_week = tParameters(1, 1);
+
+alTime = [time_of_almanac, gps_week];
+%% User time
+dateAlmanac = '07/09/2025';
+timeAlmanac = '14:57:00';
+utcStr = [dateAlmanac ' ' timeAlmanac];
+
+% Запись 
+fid = fopen('utcTime.txt', 'w');
+fprintf(fid, '%s', utcStr);
+fclose(fid);
+
+% Чтение
+fid = fopen('utcTime.txt', 'r');
+utcDate = fscanf(fid, '%c');
+fclose(fid);
+
+%utcDate = datetime(current_time, 'dd/mm/yyyy HH:MM:SS');
+
+timeVec = datetime(utcDate, 'InputFormat', 'dd/MM/yyyy HH:mm:ss');
+
+[weekGps, tow] = UtcToGps(utcDate);
+usTime = [weekGps, tow];
+
+%% Diff time
+
+time_logical = (usTime == alTime);
+
+time_diff = usTime - alTime;
+
+%% Mean motion calculation
+
+M0_index = 8;
+e_index = 1;
+A_index = 5;
+
+format long g;
+Mk = [almanac(M0_index, :);
+      almanac(e_index, :);   
+      almanac(A_index, :)];
+
+GM = 3.986005e14;
+
+
+a = Mk(3, :).^2;
+n_calculated = sqrt(GM ./ (a.^3));
+Mk = almanac(M0_index, :) + n_calculated .* (usTime(2)-almanac(2, :));
+
+%% Orbit inclination
+
+% ручной расчет среднего
+mean_manual = sum(almanac(3, :)) / length(almanac(3, :));
+
+% с помощью mean
+mean_function = mean(almanac(3, :));
