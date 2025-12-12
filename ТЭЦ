@@ -1,0 +1,169 @@
+clc;
+clear;
+close all;
+
+% === Исходные данные ===
+E1 = 42;
+E2 = 140;
+E3 = -1i*8;
+
+r2 = 22;
+r4 = 2;
+r5 = 22;
+
+L3 = 25e-3;
+
+C4 = 87.6e-6;
+C6 = 52e-6;
+
+w = 600;          % рад/с
+
+% === Комплексные проводимости ===
+Y31 = 1/(r4+1/(1i*w*C4));
+Y14 = 1/(1i*w*L3);
+Y43 = 1i*w*C6;
+Y23 = 1/r5;
+Y42 = 1/r2;
+
+% === Метод узловых потенциалов ===(1 - земля, 2 = 0+E1=E1)
+
+Y33 = Y31 + Y23 + Y43;
+Y44 = Y14 + Y42 + Y43;
+
+A = [
+        1,    0,    0,    0
+        0,    1,    0,    0
+     -Y31, -Y23,  Y33, -Y43
+     -Y14, -Y42, -Y43,  Y44
+];
+
+B = [0; E1;  0;  E3*Y14 - E2*Y42];
+phi = A \ B;
+
+phi1 = phi(1);
+phi2 = phi(2); 
+phi3 = phi(3);
+phi4 = phi(4); 
+
+I31 = (phi3 - phi1) * Y31;
+I14 = (phi1 - phi4 + E3) * Y14;
+I43 = (phi4 - phi3) * Y43;
+I23 = (phi2 - phi3) * Y23;
+I42 = (phi4 - phi2 + E2) * Y42;
+I12 = I31-I14;
+
+fprintf('\n=== Токи в ветвях (комплексные) ===\n');
+fprintf('I31: %.6f + j%.6f А\n', real(I31), imag(I31));
+fprintf('I14: %.6f + j%.6f А\n', real(I14), imag(I14));
+fprintf('I43: %.6f + j%.6f А\n', real(I43), imag(I43));
+fprintf('I23: %.6f + j%.6f А\n', real(I23), imag(I23));
+fprintf('I42: %.6f + j%.6f А\n', real(I42), imag(I42));
+fprintf('I12: %.6f + j%.6f А\n', real(I12), imag(I12));
+
+
+% === Проверка 1-го закона Кирхгофа (по отдельным узлам) ===
+sum1 = I31 - I14 - I12;
+sum2 = I12 + I42 - I23;
+sum3 = I23 + I43 - I31;
+sum4 = I14 - I43 - I42;
+
+fprintf('\n=== Проверка 1-го закона Кирхгофа ===\n');
+fprintf('Узел 1: %.3e + j%.3e А\n', real(sum1), imag(sum1));
+fprintf('Узел 2: %.3e + j%.3e А\n', real(sum2), imag(sum2));
+fprintf('Узел 3: %.3e + j%.3e А\n', real(sum3), imag(sum3));
+fprintf('Узел 4: %.3e + j%.3e А\n', real(sum4), imag(sum4));
+
+
+% =========================================================================
+% === Метод эквивалентного генератора для R5 ===
+% =========================================================================
+
+Y33_gen = Y23 + Y43;
+Y44_gen = Y14 + Y42 + Y43;
+
+A_gen = [
+        1,    0,        0,      0
+        0,    1,        0,      0
+        0, -Y23,  Y33_gen,   -Y43
+     -Y14, -Y42,     -Y43, Y44_gen
+];
+
+B_gen = [0; E1;  0;  E3*Y14 - E2*Y42];
+phi_gen = A_gen \ B_gen;
+
+phigen = A_gen \ B_gen;
+phigen1 = phi_gen(1);
+phigen3 = phi_gen(3);
+
+Uxx = (phigen3-phigen1);
+
+Z_left = r5;
+Z_right = 1/(1i*w*C6)+r2*1i*w*L3/(r2+1i*w*L3);
+Z_parallel = Z_right*Z_left/(Z_right+Z_left);
+Zgen = r4 + Z_parallel;
+
+I31_gen = Uxx / (1/(1i*w*C4) + Zgen);
+
+fprintf('\n=== Метод эквивалентного генератора для R3 ===\n');
+fprintf('Ток I34 (экв. генератор): %.6f + j%.6f А\n', real(I31_gen), imag(I31_gen));
+fprintf('Ток I34 (узловой метод):   %.6f + j%.6f А\n', real(I31), imag(I31));
+fprintf('Разность: %.3e + j%.3e А\n', real(I31_gen - I31), imag(I31_gen - I31));
+
+% =========================================================================
+% === Баланс мощностей ===
+% =========================================================================
+
+% --- Мощности источников ---
+S_E1 = E1 * conj(I12);  
+S_E2 = E2 * conj(I42);   
+S_E3 = E3 * conj(I14);            
+
+S_sources = S_E1 + S_E2 + S_E3;
+
+% --- Мощности приёмников(ветки) ---
+Sr2 = abs(I42)^2 * r2;
+Sr4 = abs(I31)^2 * r4;
+Sr5 = abs(I23)^2 * r5;
+SL3 = abs(I14)^2 * 1i*w*L3;
+SC4 = abs(I31)^2 / (1i*w*C4);
+SC6 = abs(I43)^2 / (1i*w*C6);
+
+S_loads = Sr2 + Sr4 + Sr5 + SL3 + SC4 + SC6;
+
+% --- Вывод ---
+fprintf('\n=== Баланс мощностей ===\n');
+fprintf('Сумма источников: %8.4f %+.4fi ВА\n', real(S_sources), imag(S_sources));
+fprintf('Сумма приёмников: %8.4f %+.4fi ВА\n', real(S_loads), imag(S_loads));
+fprintf('\nРазность (источники - приёмники): %.3e %+.3ei ВА\n', ...
+    real(S_sources - S_loads), imag(S_sources - S_loads));
+
+% =========================================================================
+% === векторные диаграммы ===
+% =========================================================================
+figure;
+
+hold on; grid on; axis equal;
+props = {'AutoScale', 'off', 'MaxHeadSize', 0.12, 'LineWidth', 2};
+
+quiver(0, 0, real(I14), imag(I14), 'Color', 'r', props{:});
+quiver(0, 0, real(I12), imag(I12), 'Color', 'r', props{:});
+quiver(0, 0, real(I31), imag(I31), 'Color', 'b', props{:});
+
+legend('I_{14}', 'I_{12}', 'I_{31}', 'Location', 'best');
+title('Токи в узле 1'); % у нас это узел 2
+xlabel('Re, А'); ylabel('Im, А');
+
+% --- Напряжения в контуре 3-1-4-3 ---
+U31 = phi3 - phi1;
+U14 = phi1 - phi4;
+U43 = phi4 - phi3;
+
+figure;
+hold on; grid on; axis equal;
+quiver(0, 0, real(U31), imag(U31), 'Color', 'r', props{:});
+quiver(0, 0, real(U14), imag(U14), 'Color', 'b', props{:});
+quiver(0, 0, real(U43), imag(U43), 'Color', 'g', props{:});
+
+legend('U_{31}', 'U_{14}', 'U_{43}', 'Location', 'best');
+title('Напряжения в контуре 1-2-3-1');
+xlabel('Re, В'); ylabel('Im, В');
