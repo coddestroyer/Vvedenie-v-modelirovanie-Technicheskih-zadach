@@ -1,0 +1,58 @@
+clc; clear
+
+%% Чтение альманаха
+[almanac, tParameters] = ReadGPSAlmanac();
+
+%% Индексы параметров
+idx = struct('e',1,'toa',2,'inc',3,'ra_rate',4,'sqrtA',5,'ra0',6,'w',7,'M0',8,'af0',9,'af1',10,'week',11);
+
+%% 1. Выбранный спутник
+sat = input('Номер спутника (1-32): ');
+fprintf('\n=== GPS-%d ===\n', sat);
+fprintf('ECC: %.6f\n', almanac(idx.e, sat));
+fprintf('INC: %.4f°\n', almanac(idx.inc, sat)*180/pi);
+fprintf('SQRT_A: %.6f\n', almanac(idx.sqrtA, sat));
+fprintf('M0: %.4f рад\n\n', almanac(idx.M0, sat));
+
+%% 2. 4 случайных спутника
+rndSats = randi([1 32],1,4);
+fprintf('Случайные: %d %d %d %d\n', rndSats);
+fprintf('ECC: %.4f %.4f %.4f %.4f\n\n', almanac(idx.e, rndSats));
+
+%% 3. ECC <= 0.01
+lowEcc = find(almanac(idx.e,:) <= 0.01);
+fprintf('ECC<=0.01: %d шт\n', length(lowEcc));
+if ~isempty(lowEcc), disp(lowEcc); end
+
+%% 4. Время
+% Время альманаха
+alTime = [almanac(idx.week,1), almanac(idx.toa,1)];
+fprintf('\nВремя альманаха: неделя %d, TOW %.1f\n', alTime(1), alTime(2));
+
+% Пользовательское время
+if exist('utcTime.txt','file')
+    fid = fopen('utcTime.txt','r');
+    utcStr = fscanf(fid,'%c');
+    fclose(fid);
+    [usrWeek, usrTOW] = UtcToGps(utcStr);
+    usTime = [usrWeek, usrTOW];
+    fprintf('Время пользователя: неделя %d, TOW %.1f\n', usTime(1), usTime(2));
+    
+    if alTime(1)==usTime(1)
+        dt = usTime(2)-alTime(2);
+        fprintf('Разница: %.1f сек (%.2f дней)\n', dt, dt/86400);
+    end
+end
+
+%% 5. Среднее движение
+GM = 3.986005e14;
+a = almanac(idx.sqrtA,:).^2;
+n0 = sqrt(GM./(a.^3));
+fprintf('\nСреднее движение GPS-%d: %.3e рад/с\n', sat, n0(sat));
+
+%% 6. Наклонение
+inc_deg = almanac(idx.inc,:)*180/pi;
+fprintf('\nНаклонение орбит:\n');
+fprintf('Среднее: %.2f°\n', mean(inc_deg));
+fprintf('Мин: %.2f°\n', min(inc_deg));
+fprintf('Макс: %.2f°\n', max(inc_deg));
